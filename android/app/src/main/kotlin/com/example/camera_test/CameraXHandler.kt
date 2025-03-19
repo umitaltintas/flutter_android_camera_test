@@ -553,31 +553,35 @@ class CameraXHandler(
         }
     }
 
-    private fun setFocusPoint(x: Float, y: Float, result: MethodChannel.Result) {
-        val camera = this.camera
-        if (camera == null) {
-            result.error("CAMERA_ERROR", "Camera not initialized", null)
-            return
-        }
-
-        try {
-            // Using a simplified approach for focus
-            val action = FocusMeteringAction.Builder(
-                camera.cameraInfo.createMeteringPoint(x, y),
-                FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
-            )
-                .setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS)
-                .build()
-
-            camera.cameraControl.startFocusAndMetering(action)
-                .addListener({
-                    result.success(true)
-                }, mainExecutor)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to set focus point: ${e.message}", e)
-            result.error("FOCUS_ERROR", "Failed to set focus point", e.message)
-        }
+   private fun setFocusPoint(x: Float, y: Float, result: MethodChannel.Result) {
+    val camera = this.camera
+    if (camera == null) {
+        result.error("CAMERA_ERROR", "Camera not initialized", null)
+        return
     }
+
+    try {
+        // Get the meteringPointFactory from cameraInfo
+        val meteringPointFactory = camera.cameraInfo.meteringPointFactory
+        
+        // Create the metering point from normalized coordinates
+        val meteringPoint = meteringPointFactory.createPoint(x, y)
+        
+        // Build the focus metering action
+        val action = FocusMeteringAction.Builder(meteringPoint)
+            .addPoint(meteringPoint, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+            .setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+
+        camera.cameraControl.startFocusAndMetering(action)
+            .addListener({
+                result.success(true)
+            }, mainExecutor)
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to set focus point: ${e.message}", e)
+        result.error("FOCUS_ERROR", "Failed to set focus point", e.message)
+    }
+}
 
     private fun toggleTorch(enable: Boolean, result: MethodChannel.Result) {
         val camera = this.camera
