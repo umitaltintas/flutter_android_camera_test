@@ -3,47 +3,28 @@ package com.example.camera_test
 import android.app.Activity
 import android.content.ContentValues
 import android.content.Context
-import android.graphics.Matrix
 import android.graphics.Rect
 import android.hardware.camera2.CameraCharacteristics
-import android.hardware.display.DisplayManager
-import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
 import android.util.Size
-import android.view.Display
 import android.view.Surface
-import android.view.WindowManager
 import androidx.camera.core.*
-import androidx.camera.core.ImageCapture.OnImageSavedCallback
-import androidx.camera.core.ImageCapture.OutputFileOptions
-import androidx.camera.extensions.ExtensionMode
-import androidx.camera.extensions.ExtensionsManager
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
-import androidx.concurrent.futures.await
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry
-import kotlinx.coroutines.*
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
-import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 
 class CameraXHandler(
     private val activity: Activity,
@@ -180,8 +161,8 @@ class CameraXHandler(
                             else -> -1
                         }
                         
-                        // Get supported resolutions
-                        val supportedResolutions = getSupportedResolutions(cameraInfo)
+                        // Get supported resolutions - simplified approach
+                        val supportedResolutions = getDefaultResolutions()
                         
                         // Get zoom range
                         val zoomState = cameraInfo.zoomState.value
@@ -306,35 +287,14 @@ class CameraXHandler(
         return cameraInfo.toString().hashCode().toString()
     }
 
-    private fun getSupportedResolutions(cameraInfo: CameraInfo): List<Size> {
-        val resolutions = mutableListOf<Size>()
-        try {
-            // Query available resolutions for ImageCapture
-            val qualities = arrayOf(
-                Quality.UHD, Quality.FHD, Quality.HD, Quality.SD
-            )
-            
-            for (quality in qualities) {
-                val resolution = QualitySelector.getResolution(cameraInfo, quality)
-                if (resolution != null) {
-                    resolutions.add(Size(resolution.width, resolution.height))
-                }
-            }
-            
-            // If we don't have any resolutions, add some defaults
-            if (resolutions.isEmpty()) {
-                resolutions.add(Size(3840, 2160)) // 4K
-                resolutions.add(Size(1920, 1080)) // 1080p
-                resolutions.add(Size(1280, 720))  // 720p
-                resolutions.add(Size(640, 480))   // 480p
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting supported resolutions: ${e.message}")
-            // Add fallback resolutions
-            resolutions.add(Size(1920, 1080))
-            resolutions.add(Size(1280, 720))
-        }
-        return resolutions
+    private fun getDefaultResolutions(): List<Size> {
+        // Return a list of standard resolutions instead of querying
+        return listOf(
+            Size(3840, 2160), // 4K
+            Size(1920, 1080), // 1080p
+            Size(1280, 720),  // 720p
+            Size(640, 480)    // 480p
+        )
     }
 
     private fun initializeCamera(cameraId: String?, result: MethodChannel.Result) {
@@ -493,7 +453,7 @@ class CameraXHandler(
         }
 
         // Create output options for saving the photo
-        val outputOptions = OutputFileOptions.Builder(
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(
             activity.contentResolver,
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             contentValues
@@ -503,7 +463,7 @@ class CameraXHandler(
         imageCapture.takePicture(
             outputOptions,
             mainExecutor,
-            object : OnImageSavedCallback {
+            object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                     val savedUri = outputFileResults.savedUri
                     if (savedUri != null) {
@@ -601,18 +561,15 @@ class CameraXHandler(
         }
 
         try {
-            // Convert normalized coordinates (0-1) to MeteringPoint
-            val meteringPointFactory = camera.cameraInfo.meteringPointFactory
-            val meteringPoint = meteringPointFactory.createPoint(x, y)
-
-            // Build focus and metering actions
-            val focusMeteringAction = FocusMeteringAction.Builder(meteringPoint)
-                .addPoint(meteringPoint, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+            // Using a simplified approach for focus
+            val action = FocusMeteringAction.Builder(
+                camera.cameraInfo.createMeteringPoint(x, y),
+                FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+            )
                 .setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
 
-            // Start focus and metering
-            camera.cameraControl.startFocusAndMetering(focusMeteringAction)
+            camera.cameraControl.startFocusAndMetering(action)
                 .addListener({
                     result.success(true)
                 }, mainExecutor)
