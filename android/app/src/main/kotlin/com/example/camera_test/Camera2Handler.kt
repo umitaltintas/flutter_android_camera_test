@@ -200,7 +200,7 @@ class Camera2Handler(
                         calculatedFOV = 1 / focalLength * 100
 
                         // Wide-angle detection (focal length < 5mm is typically wide-angle)
-                        isWideAngle = focalLength < 5.0f
+                        isWideAngle = focalLength < 3.0f
 
                         // Track widest angle back camera
                         if (lensFacing == CameraCharacteristics.LENS_FACING_BACK && calculatedFOV > widestAngleFOV) {
